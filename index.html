@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S3 + CloudFront</title>
+<style>
+  :root{
+    --navy-deep: #020817;
+    --navy: #071228;
+    --navy-mid: #0d1f3f;
+    --navy-light: #16305c;
+    --droplet: #3aa0ff;
+    --droplet-light: #bfe4ff;
+    --text: #eaf2ff;
+    --text-dim: #8fa3c4;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin:0;
+    padding:0;
+    height:100%;
+  }
+
+  body{
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Helvetica, Arial, sans-serif;
+    background:
+      radial-gradient(1200px 800px at 20% -10%, var(--navy-mid), transparent 60%),
+      radial-gradient(900px 700px at 110% 10%, var(--navy-light), transparent 55%),
+      linear-gradient(180deg, var(--navy-deep), var(--navy) 40%, var(--navy-deep));
+    color: var(--text);
+    min-height: 100vh;
+    display:flex;
+    flex-direction: column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding: 32px;
+    overflow-x:hidden;
+  }
+
+  /* ambient floating droplets in the background */
+  .bg-drop{
+    position:absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 25%, rgba(255,255,255,0.18), rgba(58,160,255,0.05) 55%, transparent 70%);
+    filter: blur(0.5px);
+    animation: float 12s ease-in-out infinite;
+    pointer-events:none;
+  }
+  .bg-drop:nth-child(1){ width:90px; height:90px; top:12%; left:8%; animation-duration: 14s; }
+  .bg-drop:nth-child(2){ width:50px; height:50px; top:70%; left:14%; animation-duration: 10s; animation-delay: 1s; }
+  .bg-drop:nth-child(3){ width:70px; height:70px; top:20%; left:85%; animation-duration: 16s; animation-delay: 2s; }
+  .bg-drop:nth-child(4){ width:40px; height:40px; top:78%; left:80%; animation-duration: 11s; animation-delay: 0.5s; }
+
+  @keyframes float{
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-24px); }
+  }
+
+  main{
+    max-width: 560px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap: 20px;
+    z-index: 1;
+  }
+
+  .badge{
+    width:64px;
+    height:64px;
+    border-radius: 50% 50% 50% 4%;
+    transform: rotate(45deg);
+    background: linear-gradient(160deg, var(--droplet-light) 0%, var(--droplet) 45%, #0b5aa8 100%);
+    box-shadow:
+      inset -6px -6px 12px rgba(0,0,0,0.25),
+      inset 4px 4px 10px rgba(255,255,255,0.5),
+      0 10px 30px rgba(10,60,120,0.55);
+    margin-bottom: 4px;
+  }
+
+  h1{
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  p.sub{
+    color: var(--text-dim);
+    font-size: 1rem;
+    margin: 0;
+    max-width: 40ch;
+  }
+
+  /* Water-drop style button */
+  .drop-btn{
+    --size: 150px;
+    position: relative;
+    width: var(--size);
+    height: var(--size);
+    margin-top: 28px;
+    border: none;
+    cursor: pointer;
+    background: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .drop-btn .shape{
+    position:absolute;
+    inset:0;
+    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    clip-path: path("M75,4 C110,50 146,86 146,112 C146,134.5 122.5,150 75,150 C27.5,150 4,134.5 4,112 C4,86 40,50 75,4 Z");
+    background: linear-gradient(155deg, #d8f0ff 0%, var(--droplet) 42%, #0a4c92 100%);
+    box-shadow:
+      inset -10px -14px 22px rgba(0,0,0,0.35),
+      inset 8px 10px 18px rgba(255,255,255,0.55),
+      0 18px 40px rgba(6,40,90,0.6),
+      0 4px 10px rgba(0,0,0,0.35);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .drop-btn .highlight{
+    position:absolute;
+    top: 30px;
+    left: 42px;
+    width: 22px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.65);
+    filter: blur(2px);
+    transform: rotate(-18deg);
+    pointer-events:none;
+  }
+
+  .drop-btn span.label{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding-top: 14px;
+    color:#fff;
+    font-weight: 600;
+    font-size: 1rem;
+    letter-spacing: 0.01em;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  }
+
+  .drop-btn:hover .shape{
+    transform: translateY(-4px) scale(1.03);
+    box-shadow:
+      inset -10px -14px 22px rgba(0,0,0,0.3),
+      inset 8px 10px 18px rgba(255,255,255,0.6),
+      0 24px 48px rgba(6,40,90,0.7),
+      0 6px 14px rgba(0,0,0,0.4);
+  }
+
+  .drop-btn:active .shape{
+    transform: translateY(2px) scale(0.96);
+  }
+
+  .drop-btn:focus-visible .shape{
+    outline: 2px solid var(--droplet-light);
+    outline-offset: 4px;
+  }
+
+  footer{
+    margin-top: 40px;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    z-index: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .bg-drop{ animation: none; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="bg-drop"></div>
+  <div class="bg-drop"></div>
+  <div class="bg-drop"></div>
+  <div class="bg-drop"></div>
+
+  <main>
+    <div class="badge" aria-hidden="true"></div>
+    <h1>This website is hosted with S3 + CloudFront</h1>
+    <p class="sub">Served straight from Amazon S3, delivered fast worldwide through CloudFront.</p>
+
+    <button class="drop-btn" type="button" onclick="window.location.reload()">
+      <span class="shape"></span>
+      <span class="highlight"></span>
+      <span class="label">Click here</span>
+    </button>
+  </main>
+
+  <footer>Powered by Amazon S3 &amp; CloudFront</footer>
+
+</body>
+</html>
